@@ -73,17 +73,50 @@ export const ENLEARN_STYLES = `
 .enlearn-tooltip {
   position: fixed;
   display: none;
-  background: #1e293b;
-  color: #f1f5f9;
-  padding: 5px 9px;
-  border-radius: 5px;
-  font-size: 12px;
-  line-height: 1.4;
+  background: #1a1a2e;
+  color: #e2e8f0;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
   white-space: nowrap;
   z-index: 2147483647;
-  pointer-events: none;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  pointer-events: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  display: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.enlearn-tooltip-def {
+  display: inline;
+}
+
+.enlearn-tooltip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  margin-left: 2px;
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  border-radius: 50%;
+  color: rgba(255,255,255,0.25);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.enlearn-tooltip-btn:hover {
+  background: rgba(34,197,94,0.15);
+  border-color: rgba(34,197,94,0.5);
+  color: #4ade80;
 }
 
 /* 手动触发按钮 — inline 显示，不会被 overflow:hidden 裁剪 */
@@ -470,8 +503,14 @@ body.enlearn-paused .enlearn-trigger { display: none !important; }
   }
 
   .enlearn-tooltip {
-    background: #0f172a;
+    background: #0f0f1a;
     color: #e2e8f0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+
+  .enlearn-tooltip-btn {
+    border-color: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.2);
   }
 
   .enlearn-trigger {

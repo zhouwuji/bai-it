@@ -71,11 +71,23 @@ const knownWords = new Set<string>(); // 用户已掌握的词（从 storage 加
 
 let tooltipEl: HTMLElement | null = null;
 
+let tooltipHideTimer: ReturnType<typeof setTimeout> | null = null;
+let currentTooltipWord: string | null = null;
+
 function setupTooltip(): void {
   if (tooltipEl) return;
   tooltipEl = document.createElement("div");
   tooltipEl.className = "enlearn-tooltip";
   document.body.appendChild(tooltipEl);
+
+  // Keep tooltip visible when hovering the tooltip itself
+  tooltipEl.addEventListener("mouseenter", () => {
+    if (tooltipHideTimer) { clearTimeout(tooltipHideTimer); tooltipHideTimer = null; }
+  });
+  tooltipEl.addEventListener("mouseleave", () => {
+    scheduleHideTooltip();
+  });
+  tooltipEl.addEventListener("click", onTooltipClick);
 
   document.addEventListener("mouseover", onWordHover);
   document.addEventListener("mouseout", onWordLeave);
@@ -83,17 +95,55 @@ function setupTooltip(): void {
   document.addEventListener("mouseout", onTriggerParentLeave);
 }
 
-function onWordHover(e: MouseEvent): void {
-  const word = (e.target as Element).closest?.(".enlearn-word") as HTMLElement | null;
-  if (!word || !tooltipEl) return;
+function scheduleHideTooltip(): void {
+  if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
+  tooltipHideTimer = setTimeout(() => {
+    if (tooltipEl) tooltipEl.style.display = "none";
+    currentTooltipWord = null;
+    tooltipHideTimer = null;
+  }, 150);
+}
 
-  const def = word.getAttribute("data-def");
+async function onTooltipClick(e: MouseEvent): Promise<void> {
+  const btn = (e.target as Element).closest?.(".enlearn-tooltip-btn");
+  if (!btn || !currentTooltipWord) return;
+
+  const word = currentTooltipWord;
+  knownWords.add(word);
+
+  // Save to storage
+  try {
+    await chrome.storage.local.set({ knownWords: [...knownWords] });
+  } catch { /* silent */ }
+
+  // Remove all annotations for this word on current page
+  document.querySelectorAll(`.enlearn-word`).forEach(el => {
+    if ((el as HTMLElement).dataset.word?.toLowerCase() === word) {
+      const text = document.createTextNode(el.textContent || "");
+      el.parentNode?.replaceChild(text, el);
+    }
+  });
+
+  // Hide tooltip
+  if (tooltipEl) tooltipEl.style.display = "none";
+  currentTooltipWord = null;
+}
+
+function onWordHover(e: MouseEvent): void {
+  const wordEl = (e.target as Element).closest?.(".enlearn-word") as HTMLElement | null;
+  if (!wordEl || !tooltipEl) return;
+
+  const def = wordEl.getAttribute("data-def");
   if (!def) return;
 
-  tooltipEl.textContent = def;
-  tooltipEl.style.display = "block";
+  // Cancel any pending hide
+  if (tooltipHideTimer) { clearTimeout(tooltipHideTimer); tooltipHideTimer = null; }
 
-  const wordRect = word.getBoundingClientRect();
+  currentTooltipWord = (wordEl.dataset.word || wordEl.textContent || "").toLowerCase();
+  tooltipEl.innerHTML = `<span class="enlearn-tooltip-def">${escapeHtml(def)}</span><button class="enlearn-tooltip-btn" title="标记为已掌握">✓</button>`;
+  tooltipEl.style.display = "flex";
+
+  const wordRect = wordEl.getBoundingClientRect();
   const tipRect = tooltipEl.getBoundingClientRect();
 
   let left = wordRect.left + wordRect.width / 2 - tipRect.width / 2;
@@ -114,7 +164,11 @@ function onWordHover(e: MouseEvent): void {
 function onWordLeave(e: MouseEvent): void {
   const word = (e.target as Element).closest?.(".enlearn-word");
   if (!word || !tooltipEl) return;
-  tooltipEl.style.display = "none";
+  scheduleHideTooltip();
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function onTriggerParentHover(e: MouseEvent): void {

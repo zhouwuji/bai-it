@@ -38,12 +38,12 @@ const ASSIST_HINTS: Record<number, string> = {
 };
 
 /** 辅助力度 → 底层配置映射 */
-const ASSIST_TO_CONFIG: Record<number, { chunkGranularity: "coarse" | "medium" | "fine"; sensitivity: number }> = {
-  1: { chunkGranularity: "coarse", sensitivity: 5 },
-  2: { chunkGranularity: "coarse", sensitivity: 4 },
-  3: { chunkGranularity: "medium", sensitivity: 3 },
-  4: { chunkGranularity: "fine", sensitivity: 2 },
-  5: { chunkGranularity: "fine", sensitivity: 1 },
+const ASSIST_TO_CONFIG: Record<number, { chunkGranularity: "coarse" | "medium" | "fine"; scanThreshold: "short" | "medium" | "long"; sensitivity: number }> = {
+  1: { chunkGranularity: "coarse", scanThreshold: "long", sensitivity: 5 },
+  2: { chunkGranularity: "coarse", scanThreshold: "long", sensitivity: 4 },
+  3: { chunkGranularity: "medium", scanThreshold: "medium", sensitivity: 3 },
+  4: { chunkGranularity: "fine", scanThreshold: "short", sensitivity: 2 },
+  5: { chunkGranularity: "fine", scanThreshold: "short", sensitivity: 1 },
 };
 
 /** 显示方式配置 */

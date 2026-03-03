@@ -81,14 +81,18 @@ async function toggleSite(hostname: string): Promise<{ enabled: boolean; disable
 /** 切换工具栏图标：带绿点(启用) / 无绿点(禁用) */
 async function updateIcon(tabId: number, active: boolean): Promise<void> {
   const suffix = active ? "-on" : "";
-  await chrome.action.setIcon({
-    path: {
-      16: `icons/icon16${suffix}.png`,
-      48: `icons/icon48${suffix}.png`,
-      128: `icons/icon128${suffix}.png`,
-    },
-    tabId,
-  });
+  try {
+    await chrome.action.setIcon({
+      path: {
+        16: `icons/icon16${suffix}.png`,
+        48: `icons/icon48${suffix}.png`,
+        128: `icons/icon128${suffix}.png`,
+      },
+      tabId,
+    });
+  } catch {
+    // tab 可能已关闭，静默忽略
+  }
 }
 
 // ========== Tab 暂停状态 ==========
@@ -194,7 +198,9 @@ async function updateDailyStats(chunkedCount: number): Promise<void> {
 
 chrome.runtime.onMessage.addListener(
   (message: Message, sender, sendResponse) => {
-    handleMessage(message, sender).then(sendResponse);
+    handleMessage(message, sender).then((result) => {
+      try { sendResponse(result); } catch { /* tab 可能已关闭 */ }
+    });
     return true;
   }
 );
@@ -298,12 +304,16 @@ async function handleMessage(
 // ========== Badge 更新 ==========
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  const tab = await chrome.tabs.get(activeInfo.tabId);
-  if (tab.url) {
-    const hostname = getHostname(tab.url);
-    const siteOn = hostname ? await isSiteEnabled(hostname) : false;
-    const active = siteOn && !pausedTabs.has(activeInfo.tabId);
-    updateIcon(activeInfo.tabId, active);
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
+    if (tab.url) {
+      const hostname = getHostname(tab.url);
+      const siteOn = hostname ? await isSiteEnabled(hostname) : false;
+      const active = siteOn && !pausedTabs.has(activeInfo.tabId);
+      updateIcon(activeInfo.tabId, active);
+    }
+  } catch {
+    // tab 可能已关闭，静默忽略
   }
 });
 
