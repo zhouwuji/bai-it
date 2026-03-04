@@ -3,8 +3,9 @@
  * 设计原则：克制、优雅，不抢视觉焦点，但让结构一目了然
  */
 export const ENLEARN_STYLES = `
-/* 分块容器 — 替换原文展示 */
+/* 分块容器 — 不用 position:relative，避免挡住 Reddit 等站点的覆盖导航链接 */
 .enlearn-chunked {
+  display: block !important;
   font-family: inherit;
   font-size: inherit;
   line-height: 1.5;
@@ -12,7 +13,6 @@ export const ENLEARN_STYLES = `
   margin: 1px 0;
   background: transparent;
   border-radius: 0;
-  position: relative;
   transition: background 0.2s;
 }
 
@@ -21,10 +21,10 @@ export const ENLEARN_STYLES = `
 }
 
 /* 段落间距 */
-.enlearn-para-break { display: block; height: 0.8em; }
+.enlearn-para-break { display: block !important; height: 0.8em; }
 
 /* 缩进层级 */
-.enlearn-line { display: block; }
+.enlearn-line { display: block !important; }
 .enlearn-indent-0 { padding-left: 0; }
 .enlearn-indent-1 { padding-left: 1.0em; }
 .enlearn-indent-2 { padding-left: 2.0em; }
@@ -191,14 +191,25 @@ export const ENLEARN_STYLES = `
   100% { transform: translateX(100%); }
 }
 
-/* 原文隐藏（信息流模式） */
+/* 隐藏原始元素（兄弟插入策略：原始元素隐藏，分块作为兄弟显示） */
 .enlearn-original-hidden {
   display: none !important;
 }
 
-/* 暂停状态 — 隐藏分块和触发按钮，保留 DOM 不销毁 */
+/* 覆盖截断样式，使分块内容完全可见（Twitter line-clamp / Reddit -webkit-box 等）
+   注意：不在 CSS 中设 display:block，只在 JS 中对 webkit-box 元素设（避免破坏 flex 布局） */
+.enlearn-clamp-override {
+  -webkit-line-clamp: unset !important;
+  -webkit-box-orient: unset !important;
+  max-height: none !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+}
+
+/* 暂停状态 — 显示原文、隐藏分块 */
 body.enlearn-paused .enlearn-chunked { display: none !important; }
 body.enlearn-paused .enlearn-trigger { display: none !important; }
+body.enlearn-paused .enlearn-original-hidden { display: block !important; }
 
 /* 暗色模式适配 */
 @media (prefers-color-scheme: dark) {

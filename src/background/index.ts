@@ -25,9 +25,6 @@ async function getConfig(): Promise<BaitConfig> {
   if (!Array.isArray(config.disabledSites)) {
     config.disabledSites = [];
   }
-  if (!Array.isArray(config.industryPacks)) {
-    config.industryPacks = ["ai"];
-  }
   if (!config.chunkGranularity) {
     config.chunkGranularity = "fine";
   }

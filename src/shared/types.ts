@@ -32,7 +32,6 @@ export interface BaitConfig {
   chunkGranularity: "coarse" | "medium" | "fine"; // 拆分颗粒度
   chunkIntensity: number; // 1-5，渲染力度
   disabledSites: string[]; // hostname 黑名单
-  industryPacks: string[]; // 勾选的行业术语包，如 ["ai"]
 }
 
 export const DEFAULT_PROVIDERS: Record<ProviderKey, ProviderConfig> = {
@@ -53,7 +52,6 @@ export const DEFAULT_CONFIG: BaitConfig = {
   chunkGranularity: "fine",
   chunkIntensity: 5,
   disabledSites: [],
-  industryPacks: ["ai"],
 };
 
 /** Provider 元数据（format / baseUrl 是常量，从 provider 名推导） */
@@ -161,8 +159,7 @@ export interface VocabRecord {
   word: string;
   status: VocabStatus;
   phonetic?: string;
-  definition?: string; // 通用释义（离线词典）
-  industry_definition?: string; // 行业释义
+  definition?: string; // 释义（含行业义项）
   encounter_count: number; // 遭遇次数
   first_seen_at: number;
   mastered_at?: number;

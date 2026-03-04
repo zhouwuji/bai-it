@@ -16,7 +16,6 @@ export function useConfig() {
         llm: migrateLLMConfig(raw.llm),
       };
       if (!Array.isArray(merged.disabledSites)) merged.disabledSites = [];
-      if (!Array.isArray(merged.industryPacks)) merged.industryPacks = ["ai"];
       setConfig(merged);
       setLoading(false);
     });

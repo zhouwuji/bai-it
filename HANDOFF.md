@@ -4,98 +4,67 @@
 
 ## 当前状态
 
-**设置页精简 + 模型更新 + 端到端测试连接完成。** 199 个单元测试全通过，构建正常。Gemini 3.1 Flash-Lite 和 DeepSeek 已验证端到端跑通。
+**插件修复完成，发布准备中。** 198 个单元测试全通过，构建正常。
 
-### 本次完成（0304 设置页精简 + API 调试）
+### 本次完成（0305 插件修复：Twitter Show more + DOM 策略 + 词典合并）
 
-**Settings Tab 大幅精简，只保留 API Key 配置 + 测试连接：**
+**三块修复一起提交：**
 
-1. **模型列表更新**（`constants.ts` + `types.ts`）— 5 家 provider 全部更新为官方最新模型 ID
-   - Gemini: `gemini-3.1-flash-lite-preview`（默认）、`gemini-2.5-flash`、`gemini-2.5-flash-lite`
-   - ChatGPT: `gpt-4.1-mini`（默认）、`gpt-5-nano`、`gpt-5-mini`
-   - DeepSeek: `deepseek-chat`（V3.2）
-   - Qwen: `qwen3-flash`（默认）、`qwen-plus`
-   - Kimi: `kimi-k2.5`（默认）、`moonshot-v1-8k`
-2. **端到端测试连接**（`Settings.tsx`）— 点击"测试连接"发真实掰句请求，走完整 `chunkSentences()` 链路验证
-3. **删除"显示"section** — 语言选择器、掰句力度、显示方式（这些在 Popup 中设置）
-4. **删除"数据管理"section** — 导出 JSON、清空学习记录、重置设置
-5. **删除"保存"按钮** — config 已自动保存
-6. **App.tsx** — Settings 不再传 `db`、`saveConfig` props
-7. **CSS** — 删除 save/danger/btn-text 样式，新增 verify-btn/verify-result 样式
+1. **Twitter "Show more" 修复** — 跳过含 "Show more" 按钮的推文，保留按钮让用户自己点
+   - **根因**：Twitter React 通过 `scrollHeight > clientHeight` 重测量决定是否渲染 "Show more"，隐藏 tweetText 导致 React 认为无溢出，通过 reconciliation 删除按钮
+   - **方案**：`scanPage` 中检测到 `[data-testid="tweet-text-show-more-link"]` → `continue` 跳过
+   - 用户手动点击 "Show more" → React 加载全文 → MutationObserver 检测到变化 → `scanPage` 处理全文
+2. **DOM 插入策略增强**
+   - 父容器防卫：`el.querySelector(DOM_SELECTORS)` 跳过包含更具体匹配的父容器
+   - 隐藏后代防卫：`el.closest(".enlearn-original-hidden")` 跳过已隐藏元素内的后代
+   - `.enlearn-clamp-override` CSS 不再强制 `display: block !important`（避免破坏 flex 布局）
+   - MutationObserver 增强：场景 A（原地内容更新）+ 场景 B（React 元素替换 + 孤儿清理）
+   - `restoreSingleElement()` 新增：单元素恢复函数
+3. **词典合并：删除 industry pack 系统**（同上次 session，之前未提交）
+   - AI 义项合并进 `dict-ecdict.json`，删除 `data/industry-ai.json`
+   - 移除 `loadIndustryPack`、`lookupIndustry`、`industryMaps`
+   - 清理全链路：types.ts、background、useConfig、DailyReview、测试
 
-### 上次完成（0304 引导系统 v2）
+### 上次完成（0304 设置页精简 + API 调试）
 
-**管理端引导逻辑从全局三态枚举重构为 per-tab 三维状态。**
-
-### 上次完成（0304 Options 生词 Tooltip + 掌握标记）
-
-**生词 Tooltip + 掌握标记 — 全部 7 步完成：**
-
-1. **useMasteredWords context** (`src/options/hooks/useMasteredWords.ts` 新建)
-   - `MasteredWordsContext` + `useMasteredWordsProvider` + `useMasteredWords`
-   - 加载/持久化 `chrome.storage.local.knownWords`
-   - `toggleMastered(word)` — toggle Set + 同步 IndexedDB vocabDAO
-
-2. **ChunkLines 改造** (`src/options/components/ChunkLines.tsx`)
-   - vocab span 加 `data-word` / `data-def` 属性
-   - 已掌握词加 `.vocab-mastered` class（`color: inherit` 融入所在行颜色）
-
-3. **WordTooltip 全局组件** (`src/options/components/WordTooltip.tsx` 新建)
-   - document 级事件委托（mouseover/mouseout `.vocab[data-def]`）
-   - 精致暗色毛玻璃风格：`filter: drop-shadow` 双层阴影 + `border-top` 光感
-   - SVG 箭头（继承 drop-shadow）
-   - `scale(0.96→1) + opacity` 入场动画
-   - 两阶段定位：render → useLayoutEffect 测量 → 精确定位
-   - 展示词名（红色）+ 释义 + 低调掌握按钮（圆圈/对勾图标）
-
-4. **App.tsx 挂载** — `MasteredWordsContext.Provider` 包裹 + `WordTooltip`
-
-5. **Sentences.tsx** — VocabPill 接入 `useMasteredWords`
-
-6. **DailyReview.tsx** — 删除本地 `masteredIds`，改用共享 context
-
-7. **CSS** — `.vocab-mastered`（color: inherit）、`.vt` 系列 tooltip 样式
-
-**额外修复：**
-- VocabPill 按钮 `stopPropagation` 防止卡片收起
-- 断句练习 `.break-point` 点击区扩大（`::before` 画 3px 竖线，外层 15px 透明点击区）
-- 看答案按钮与卡片间距修复（`marginTop: 16px`）
-
-### 上次 session 完成（0304 Phase 2 编码）
-
-**Phase 2 数据采集 + 管理端懒处理 — 全部 6 步编码完成：**
-
-1. **类型定义** — `PendingSentenceRecord`、`FullAnalysisResult`、新消息类型
-2. **数据层** — DB_VERSION 1→2，`pending_sentences` 表，`pendingSentenceDAO`
-3. **单元测试** — 10 个新测试覆盖 CRUD、去重、排序、分页、v1→v2 升级
-4. **LLM 适配层** — `analyzeSentenceFull()` 独立 prompt + JSON 解析
-5. **Background** — `saveSentence` / `analyzeSentences` handler，逐条分析 + 500ms 限流
-6. **难句集 Tab** — pending + analyzed 混合列表、自动触发分析、实时填充、分页
+**Settings Tab 大幅精简，只保留 API Key 配置 + 测试连接。** 5 家 provider 模型列表更新为最新 ID。端到端测试连接走完整 `chunkSentences()` 链路。Gemini 3.1 Flash-Lite 和 DeepSeek 已验证跑通。
 
 ### 注意事项
 
 - **IndexedDB 数据库名保持 `openen-data` / `openen-cache`**，改名会丢失已有用户数据
 - **图标两套 PNG**：`icons/icon*.png`（默认无绿点）+ `icons/icon*-on.png`（启用态有绿点），background 通过 `chrome.action.setIcon()` 动态切换
 - **辅助力度滑杆映射**：1-5 档同时控制 `chunkGranularity`（拆分规则激进度）和 `scanThreshold`（扫读最小词数），见 `src/popup/index.ts` ASSIST_TO_CONFIG
-- **DOM 插入双策略**：`insertChunkedElement()` 根据是否有截断容器选择策略 A 或 B，见 `src/content/index.ts`
-- **Twitter 导航兼容**：策略 A 用 `dispatchEvent` 到原始元素的 React Fiber 节点保持 React 事件委托正常工作。短文本（< 8 词）不处理，避免干扰推文交互
+- **DOM 插入策略**：`insertChunkedElement()` 隐藏原始元素 + 兄弟插入 + 向上遍历修复 overflow/clamp
+- **Twitter 兼容**：
+  - 导航：`dispatchEvent` 到原始元素的 React Fiber 节点保持事件委托正常
+  - Show more：跳过未展开推文，用户点 "Show more" 后 MutationObserver 自动处理
+  - 短文本（< 8 词）不处理，避免干扰推文交互
 
 ---
 
 ## 下一步
 
-**浏览器验收（完整流程）**：
-1. 浏览英文网页 → DevTools IndexedDB `openen-data` → `pending_sentences` 表有数据
-2. 数据去重：同一句子只存一次
-3. 手动触发的句子 `manual: true`
-4. 打开管理端难句集 Tab → 看到 pending 卡片 + "分析中..." badge
-5. 有 API key 时 → LLM 分析结果逐条填充，卡片变为 analyzed 状态
-6. 分页可用（> 10 条时显示翻页）
-7. v1→v2 升级：旧数据库用户首次打开不丢数据
-8. 总览 Tab → hover 红色词 → tooltip 显示释义 + "掌握"按钮
-9. 点击"掌握" → 词融入所在行颜色（主干白/缩进灰），tooltip 消失
-10. 切 Tab → 掌握状态跨 Tab 共享
-11. 刷新页面 → 掌握状态持久化
+**发布准备**（GitHub 开源 + Chrome Web Store 上架）：
+
+### 发布前必做
+
+1. **完整浏览器验收**（端到端，还没跑过）：
+   - 浏览英文网页 → pending_sentences 写入 + 去重
+   - 手动触发 → LLM 深度分析
+   - 管理端懒处理 → 逐条填充
+   - 生词 Tooltip + 掌握标记持久化
+   - 引导系统各状态切换
+2. **README.md 重写** — 当前版本过时（还写着"壁纸生成"等已删功能），需要面向用户重写
+3. **PRIVACY.md 更新** — GitHub 仓库地址待确认后更新链接
+4. **.gitignore 补充** — playground/mockup 文件、frontend-slides、截图目录
+5. **publishing.md 清单推进** — 按清单逐项完成
+
+### 发布清单概览（详见 `docs/publishing.md`）
+
+**已完成**：MIT License、隐私政策
+**待完成**：
+- 开源：确认 GitHub 仓库地址、完善 README、检查 .gitignore、依赖 license 兼容性
+- Chrome Web Store：注册开发者账号（$5）、准备素材（图标/截图/文案）、权限用途说明、数据披露表、提交审核
 
 ---
 
@@ -124,37 +93,43 @@
 
 ## 关键决策记录
 
-### 三层体验模型（0303 新，替代原两层产品模型）
+### 词典统一（0304 新，替代三层词汇源）
+- **删除 industry pack 系统**，AI 义项合并进 dict-ecdict.json
+- 词典是唯一的标注源（不在词典中 → 不标注）
+- AI 义项格式：`原义 | [AI] AI释义`，纯 AI 词条：`[AI] 释义`
+- 产品名（ChatGPT、Claude 等）不入词典 → 不会被标注
+
+### 三层体验模型（0303，替代原两层产品模型）
 - **第一层**：装完即用 — 所有英文网页自动扫读，本地拆分 + 标生词，零配置
 - **第二层**：手动掰句 — 用户点哪句拆哪句，无 API 时本地强制拆
 - **第三层**：LLM 深度分析 — 有 API 时手动触发走 LLM，结果存管理端
 - 详见 `docs/prd.md`「三层体验模型」章节
 
-### 统一扫读（0303 新，替代原两种阅读模式）
+### 统一扫读（0303，替代原两种阅读模式）
 - **不再区分扫读/细读**，删除 `detectReadingMode()` 站点列表
 - 所有英文网页统一自动扫读 + 手动触发按需深入
 - 详见 `docs/prd.md`「自动扫读 + 手动掰句」章节
 
-### DOM 插入双策略（0304 新）
-- **策略 A**：信息流（Twitter/Reddit，有 overflow:hidden 截断）→ 隐藏容器 + 兄弟插入 + dispatchEvent 保留导航
-- **策略 B**：文章站（Substack/Medium，无截断）→ in-place 替换 + stopPropagation 防 React 清除
-- 向上遍历遇到 `<a>` / `<article>` 边界停止，不破坏导航结构
+### DOM 插入策略（0305 简化）
+- **统一兄弟插入**：隐藏原始元素（`display: none`）+ 兄弟插入 chunked div + 向上遍历修复 overflow/clamp
+- 向上遍历遇到 `<a>` / `<article>` 边界停止
+- Twitter `dispatchEvent` 到原始元素保留 React 事件委托
+- Twitter "Show more"：跳过未展开推文，MutationObserver 自动处理展开后的全文
 
-### 数据采集懒处理（0303 新）
+### 数据采集懒处理（0303）
 - 浏览时：原始句子存 `pending_sentences` 表（零成本）
 - 管理端：打开时按页发 LLM（每页 10 条），翻页再发下一批
 - 分析结果缓存到 `learning_records`，不重复发
 - 详见 `docs/prd.md`「数据采集策略」章节
 
-### 生词 Tooltip 设计（0304 新）
+### 生词 Tooltip 设计（0304）
 - **Tooltip 风格**：精致 — 词名（红色）+ 释义 + 低调掌握按钮
-- **视觉**：`filter: drop-shadow` 双层阴影 + `border-top` 光感 + SVG 箭头 + `scale(0.96→1)` 动画
-- **掌握态**：`color: inherit` — 融入所在行颜色（主干行白色、缩进行灰色）
+- **掌握态**：`color: inherit` — 融入所在行颜色
 - **持久化**：`chrome.storage.local.knownWords` + IndexedDB 双写
 
 ### 生词标注方案
 - **不直接显示中文释义**，用 hover 虚线（避免视觉干扰）
-- **三层词汇源**：行业术语包（V1 必须有 AI 包）> 通用离线词典 > LLM 语境化释义
+- **统一词典**：通用词典 + AI 义项合并 > LLM 语境化释义（仅 LLM 调用时获得）
 - 所有元素（含未拆分的）都会标注生词
 
 ### 学习系统（管理端 Options 页）
@@ -181,21 +156,22 @@
 - [x] 管理端示例数据 + 提示条（Puppeteer 截图验收通过）
 - [x] 统一扫读架构讨论 + 文档更新（prd.md / architecture.md / testing.md）
 - [x] **Phase 1 统一扫读重构 + Twitter/Substack 兼容**（编码 + 验证通过）
-- [x] **Phase 2 数据采集 + 管理端懒处理**（编码完成，199 测试通过）
+- [x] **Phase 2 数据采集 + 管理端懒处理**（编码完成）
 - [x] **Options 生词 Tooltip + 掌握标记**（精致风格 + inherit 融入 + 持久化）
 - [x] **设置页精简 + 模型更新 + 端到端测试连接**（Gemini 3.1 / DeepSeek 已验证跑通）
+- [x] **词典合并：删除 industry pack 系统**（AI 义项合并进通用词典，198 测试通过）
+- [x] **插件修复：Twitter Show more + DOM 策略增强 + MutationObserver**
 
 ## 编码细节
 
 ### 构建配置
 - **ESM** 仅用于 background service worker（MV3 要求 `type: module`）
 - **IIFE** 用于 content script、popup、options（Chrome 不支持 content script ESM）
-- content.js 包含词汇数据打包后 102KB（minified），可接受
+- content.js 包含词汇数据打包后约 350KB（含合并后的词典），可接受
 
 ### 数据文件（data/）
 - `word-frequency.json`：5000 常用词（来源：Google Trillion Word Corpus top 5000）
-- `dict-ecdict.json`：~250 个精选词汇中文释义（MVP 子集，生产可扩展）
-- `industry-ai.json`：~80 个 AI 行业术语及中文释义
+- `dict-ecdict.json`：6125 个词条（通用释义 + AI 等行业义项合并），格式 `原义 | [AI] AI释义`
 
 ### IndexedDB 数据层
 - **数据库**：`openen-data`（与缓存数据库 `openen-cache` 独立）— 名称保持不改，避免丢失用户数据

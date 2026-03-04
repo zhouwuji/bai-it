@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   loadFrequencyList,
   loadDictionary,
-  loadIndustryPack,
   annotateWords,
   isCommonWord,
   toNewWordsFormat,
@@ -11,13 +10,11 @@ import {
 
 import frequencyWords from "../../tests/fixtures/word-frequency-test.json";
 import dictEntries from "../../tests/fixtures/dict-test.json";
-import aiTerms from "../../tests/fixtures/industry-ai-test.json";
 
 beforeEach(() => {
   resetAll();
   loadFrequencyList(frequencyWords);
   loadDictionary(dictEntries);
-  loadIndustryPack("ai", aiTerms);
 });
 
 // ========== 验收标准：词频过滤 ==========
@@ -67,69 +64,47 @@ describe("词频过滤", () => {
   });
 });
 
-// ========== 验收标准：行业术语匹配 ==========
+// ========== 验收标准：AI 义项已合并到词典 ==========
 
-describe("行业术语匹配", () => {
-  it("AI 术语包中的词优先用行业释义", () => {
+describe("AI义项合并到词典", () => {
+  it("含 AI 义项的词通过词典标注", () => {
     const result = annotateWords(
       "The model suffers from hallucination during inference.",
       new Set(),
-      ["ai"],
     );
     const hallucination = result.find(a => a.word === "hallucination");
     expect(hallucination).toBeDefined();
-    expect(hallucination!.source).toBe("industry");
-    expect(hallucination!.definition).toContain("AI");
+    expect(hallucination!.definition).toContain("[AI]");
 
     const inference = result.find(a => a.word === "inference");
     expect(inference).toBeDefined();
-    expect(inference!.source).toBe("industry");
+    expect(inference!.definition).toContain("[AI]");
   });
 
-  it("行业释义优先于通用词典", () => {
-    // "latent" 在词典和 AI 术语包中都有
-    // 确保词典中也有 latent
-    loadDictionary({ ...dictEntries, latent: "adj. 潜伏的，隐藏的" });
-
+  it("词典释义同时包含通用和 AI 义项", () => {
     const result = annotateWords(
       "The latent space representation captures semantic features.",
       new Set(),
-      ["ai"],
     );
     const latent = result.find(a => a.word === "latent");
     expect(latent).toBeDefined();
-    expect(latent!.source).toBe("industry"); // 行业优先
+    // 既有通用释义又有 AI 释义
+    expect(latent!.definition).toContain("潜在的");
+    expect(latent!.definition).toContain("[AI]");
   });
 
-  it("未启用的术语包不生效", () => {
+  it("纯 AI 术语也能通过词典标注", () => {
     const result = annotateWords(
-      "The model suffers from hallucination.",
+      "Backpropagation and overfitting are key ML concepts.",
       new Set(),
-      [], // 不启用任何术语包
     );
-    const hallucination = result.find(a => a.word === "hallucination");
-    // hallucination 不在通用词典中，所以不会被标注
-    expect(hallucination).toBeUndefined();
-  });
+    const bp = result.find(a => a.word === "backpropagation");
+    expect(bp).toBeDefined();
+    expect(bp!.definition).toContain("反向传播");
 
-  it("多术语包支持", () => {
-    loadIndustryPack("finance", {
-      derivative: "衍生品，基于基础资产价格的金融合约",
-      portfolio: "投资组合，由多种资产构成的集合",
-    });
-
-    const result = annotateWords(
-      "The portfolio optimization uses gradient descent.",
-      new Set(),
-      ["ai", "finance"],
-    );
-    const portfolio = result.find(a => a.word === "portfolio");
-    expect(portfolio).toBeDefined();
-    expect(portfolio!.source).toBe("industry");
-
-    const gradient = result.find(a => a.word === "gradient");
-    expect(gradient).toBeDefined();
-    expect(gradient!.source).toBe("industry");
+    const of_ = result.find(a => a.word === "overfitting");
+    expect(of_).toBeDefined();
+    expect(of_!.definition).toContain("过拟合");
   });
 });
 

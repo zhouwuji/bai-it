@@ -11,7 +11,7 @@
 import { isEnglish } from "../shared/rule-engine.ts";
 import { scanSplit, toChunkedString } from "../shared/scan-rules.ts";
 import {
-  loadFrequencyList, loadDictionary, loadIndustryPack,
+  loadFrequencyList, loadDictionary,
   annotateWords, toNewWordsFormat, isLoaded,
 } from "../shared/vocab.ts";
 import type { BaitConfig, ChunkResult, BackgroundMessage } from "../shared/types.ts";
@@ -23,7 +23,6 @@ import { ENLEARN_STYLES } from "./styles.ts";
 
 import wordFrequency from "../../data/word-frequency.json";
 import dictEntries from "../../data/dict-ecdict.json";
-import industryAi from "../../data/industry-ai.json";
 
 // ========== 状态 ==========
 
@@ -173,7 +172,6 @@ async function init(): Promise<void> {
   // 加载词汇数据
   loadFrequencyList(wordFrequency as string[]);
   loadDictionary(dictEntries as Record<string, string>);
-  loadIndustryPack("ai", industryAi as Record<string, string>);
 
   // 加载用户已掌握的词
   try {
@@ -231,25 +229,14 @@ function deactivate(): void {
   }
   pendingElements.clear();
 
-  // 1. 恢复 in-place 替换的元素（策略 B）
-  restoreReplacedElements();
+  restoreProcessedElements();
 
-  // 2. 移除兄弟模式的 chunked 元素（策略 A）
-  const chunkedEls = document.querySelectorAll(".enlearn-chunked");
-  for (const el of chunkedEls) el.remove();
-
-  // 3. 恢复被隐藏的原文（策略 A）
-  const hiddenEls = document.querySelectorAll(".enlearn-original-hidden");
-  for (const el of hiddenEls) el.classList.remove("enlearn-original-hidden");
-
-  // 4. 移除手动触发按钮
-  const triggerWraps = document.querySelectorAll(".enlearn-trigger-wrap, [data-enlearn-trigger]");
-  for (const wrap of triggerWraps) {
-    const trigger = wrap.querySelector(".enlearn-trigger");
-    if (trigger) trigger.remove();
-    wrap.classList.remove("enlearn-trigger-wrap");
-    wrap.removeAttribute("data-enlearn-trigger");
-  }
+  // 移除手动触发按钮
+  document.querySelectorAll(".enlearn-trigger").forEach(t => t.remove());
+  document.querySelectorAll("[data-enlearn-trigger]").forEach(w => {
+    w.classList.remove("enlearn-trigger-wrap");
+    w.removeAttribute("data-enlearn-trigger");
+  });
 
   processedElements = new WeakSet<Element>();
   chrome.storage.onChanged.removeListener(onStorageChanged);
@@ -268,8 +255,15 @@ function pauseProcessing(): void {
     processTimer = null;
   }
 
-  document.body.classList.add("enlearn-paused");
+  // 暂停：隐藏分块 + 显示原文（用 JS 直接操作，不依赖 CSS body 级规则）
+  document.querySelectorAll(".enlearn-chunked").forEach(el => {
+    (el as HTMLElement).style.setProperty("display", "none", "important");
+  });
+  document.querySelectorAll(".enlearn-trigger").forEach(el => {
+    (el as HTMLElement).style.setProperty("display", "none", "important");
+  });
   document.querySelectorAll(".enlearn-original-hidden").forEach(el => {
+    (el as HTMLElement).style.removeProperty("display");
     el.classList.remove("enlearn-original-hidden");
     el.classList.add("enlearn-was-hidden");
   });
@@ -278,9 +272,21 @@ function pauseProcessing(): void {
 function resumeProcessing(): void {
   if (!isActive || !isPaused) return;
   isPaused = false;
-  document.body.classList.remove("enlearn-paused");
 
-  // 恢复时用新配置重新处理（而非显示旧结果）
+  // 恢复：重新隐藏原文 + 显示分块
+  document.querySelectorAll(".enlearn-was-hidden").forEach(el => {
+    (el as HTMLElement).style.setProperty("display", "none", "important");
+    el.classList.add("enlearn-original-hidden");
+    el.classList.remove("enlearn-was-hidden");
+  });
+  document.querySelectorAll(".enlearn-chunked").forEach(el => {
+    (el as HTMLElement).style.removeProperty("display");
+  });
+  document.querySelectorAll(".enlearn-trigger").forEach(el => {
+    (el as HTMLElement).style.removeProperty("display");
+  });
+
+  // 恢复时用新配置重新处理
   reprocessPage();
 
   setupIntersectionObserver();
@@ -291,17 +297,7 @@ function resumeProcessing(): void {
  * 清除所有已渲染的分块，重置处理状态，用当前配置重新扫描页面
  */
 function reprocessPage(): void {
-  // 恢复 in-place 替换的元素（策略 B）
-  restoreReplacedElements();
-
-  // 移除兄弟模式的分块元素（策略 A）
-  document.querySelectorAll(".enlearn-chunked").forEach(el => el.remove());
-
-  // 恢复被隐藏的原文
-  document.querySelectorAll(".enlearn-original-hidden, .enlearn-was-hidden").forEach(el => {
-    el.classList.remove("enlearn-original-hidden");
-    el.classList.remove("enlearn-was-hidden");
-  });
+  restoreProcessedElements();
 
   // 移除手动触发按钮
   document.querySelectorAll(".enlearn-trigger").forEach(t => t.remove());
@@ -380,91 +376,83 @@ function copyFontStyles(source: Element, target: HTMLElement): void {
 /**
  * 将 chunked 元素插入 DOM，替换原文显示。
  *
- * 两种策略：
- * A. 信息流（Twitter/Reddit）：overflow:hidden 截断预览 → 在截断容器外层插入兄弟元素
- * B. 文章站（Substack/Medium）：无截断 → 直接替换原始元素内部内容（避免被 React 清掉）
+ * 策略：隐藏原始元素 + 兄弟插入（沿用旧 Enlearn 方案）
+ * - 原始元素 display:none（保留在 DOM 中，保留框架绑定）
+ * - 分块内容作为下一个兄弟元素插入
+ * - 不修改原始元素的子节点 → React Fiber / Lit 绑定全部正常
+ * - 不 stopPropagation、不 dispatchEvent、不做站点特判
  */
 function insertChunkedElement(
   originalEl: Element,
   chunkedEl: HTMLElement,
 ): void {
-  // 从原始元素向上走，找截断容器
-  let hideTarget: Element = originalEl;
-  let current = originalEl.parentElement;
+  // 1. 隐藏原始元素
+  (originalEl as HTMLElement).style.setProperty("display", "none", "important");
+  originalEl.classList.add("enlearn-original-hidden");
+  // 2. 插入分块作为兄弟
+  originalEl.parentNode?.insertBefore(chunkedEl, originalEl.nextSibling);
 
+  // 3. 向上查找截断容器，用 inline style 覆盖
+  //    - Reddit/Substack: -webkit-box + line-clamp
+  //    - Twitter: overflow:hidden 截断长推文（"Show more" 按钮被裁剪）
+  let current = originalEl.parentElement;
   for (let i = 0; i < 6 && current; i++) {
-    // 绝不跨过链接或文章边界，否则会破坏点击导航（如 Twitter 引用推文）
     const tag = current.tagName;
     if (tag === "A" || tag === "ARTICLE") break;
+    if (current.getAttribute("role") === "article") break;
 
     const cls = current.className || "";
     const cs = window.getComputedStyle(current);
-    const isClipping =
+
+    const isWebkitBox =
       cls.includes("line-clamp") ||
-      cls.includes("overflow-hidden") ||
       cls.includes("text-ellipsis") ||
-      cs.overflow === "hidden" ||
-      (cs.webkitLineClamp && cs.webkitLineClamp !== "none");
+      (cs.webkitLineClamp && cs.webkitLineClamp !== "none") ||
+      cs.display === "-webkit-box" ||
+      cs.display === "-webkit-inline-box";
 
-    if (isClipping) {
-      hideTarget = current;
-      current = current.parentElement;
-    } else {
-      break;
+    const isOverflowClip =
+      (cs.overflow === "hidden" || cs.overflowY === "hidden") &&
+      !isWebkitBox; // 避免重复处理
+
+    if (isWebkitBox) {
+      current.classList.add("enlearn-clamp-override");
+      current.style.setProperty("-webkit-line-clamp", "unset", "important");
+      current.style.setProperty("-webkit-box-orient", "unset", "important");
+      current.style.setProperty("display", "block", "important");
+      current.style.setProperty("max-height", "none", "important");
+      current.style.setProperty("overflow", "visible", "important");
+    } else if (isOverflowClip) {
+      // Twitter 等站点：overflow:hidden 裁剪内容和 "Show more" 按钮
+      current.classList.add("enlearn-clamp-override");
+      current.style.setProperty("max-height", "none", "important");
+      current.style.setProperty("overflow", "visible", "important");
     }
-  }
-
-  if (hideTarget !== originalEl) {
-    // 策略 A：有截断容器（Twitter/Reddit）→ 隐藏容器，插入兄弟
-    hideTarget.classList.add("enlearn-original-hidden");
-    hideTarget.parentNode?.insertBefore(chunkedEl, hideTarget.nextSibling);
-
-    // 转发点击到被隐藏的原始元素（它保留了 React Fiber 节点）
-    // React 事件委托能识别该元素，正常触发推文导航等 onClick handler
-    chunkedEl.addEventListener("click", (e) => {
-      const target = e.target as Element;
-      if (target.closest?.(".enlearn-trigger, .enlearn-word, a")) return;
-
-      hideTarget.dispatchEvent(new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        view: window,
-        clientX: e.clientX,
-        clientY: e.clientY,
-      }));
-    });
-  } else {
-    // 策略 B：无截断（文章站）→ 保留原始元素，替换内部内容
-    // 拦截冒泡，防止 Substack 等 React 站点因 click 重渲染导致内容消失
-    chunkedEl.addEventListener("click", (e) => {
-      if ((e.target as Element).closest?.(".enlearn-trigger")) return;
-      e.stopPropagation();
-    });
-    const fragment = document.createDocumentFragment();
-    while (originalEl.firstChild) fragment.appendChild(originalEl.firstChild);
-    (originalEl as any)._enlearnFragment = fragment;
-    originalEl.appendChild(chunkedEl);
-    originalEl.classList.add("enlearn-replaced");
+    current = current.parentElement;
   }
 }
 
 /**
- * 恢复所有 in-place 替换的元素（策略 B）
+ * 恢复所有处理过的元素（移除分块兄弟，显示原始元素）
  */
-function restoreReplacedElements(): void {
-  document.querySelectorAll(".enlearn-replaced").forEach(el => {
-    // 移除我们放进去的 chunked 内容
-    const chunked = el.querySelector(".enlearn-chunked");
-    if (chunked) chunked.remove();
+function restoreProcessedElements(): void {
+  // 移除所有分块元素
+  document.querySelectorAll(".enlearn-chunked").forEach(el => el.remove());
 
-    // 恢复原始子节点
-    const fragment = (el as any)._enlearnFragment as DocumentFragment | undefined;
-    if (fragment) {
-      el.appendChild(fragment);
-      delete (el as any)._enlearnFragment;
-    }
+  // 恢复隐藏的原始元素（清除 inline style + class）
+  document.querySelectorAll(".enlearn-original-hidden").forEach(el => {
+    (el as HTMLElement).style.removeProperty("display");
+    el.classList.remove("enlearn-original-hidden");
+  });
 
-    el.classList.remove("enlearn-replaced");
+  // 清理截断覆盖（清除 inline style + class）
+  document.querySelectorAll(".enlearn-clamp-override").forEach(el => {
+    (el as HTMLElement).style.removeProperty("-webkit-line-clamp");
+    (el as HTMLElement).style.removeProperty("-webkit-box-orient");
+    (el as HTMLElement).style.removeProperty("display");
+    (el as HTMLElement).style.removeProperty("max-height");
+    (el as HTMLElement).style.removeProperty("overflow");
+    el.classList.remove("enlearn-clamp-override");
   });
 }
 
@@ -511,12 +499,30 @@ function scanPage(): void {
     if (isEnlearnElement(el)) continue;
     if (el.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], [role="complementary"]')) continue;
 
+    // 跳过包含更具体匹配的父容器
+    // 例如 Twitter 上 div[lang="en"] 可能同时匹配 tweetText 和包裹它的父容器
+    // 父容器被隐藏会连带隐藏 "Show more" 等兄弟按钮
+    if (el.querySelector(DOM_SELECTORS)) continue;
+
+    // 跳过已经被隐藏的元素内部的后代
+    if (el.closest(".enlearn-original-hidden")) continue;
+
     const text = el.textContent?.trim() ?? "";
     if (text.length < 10) continue;
     if (!isEnglish(text)) continue;
 
     // 太短的文本不值得处理（短推文、标题等）
     if (text.split(/\s+/).length < 8) continue;
+
+    // Twitter "Show more"：跳过未展开的推文，保留按钮让用户自己点
+    // 原因：隐藏 tweetText 会让 React 重测量 scrollHeight，发现无溢出后删除按钮
+    // 用户点击展开后，MutationObserver 检测到新内容会自动触发 scanPage 处理全文
+    if (el.matches('[data-testid="tweetText"]')) {
+      const showMoreBtn = el.parentElement?.querySelector(
+        '[data-testid="tweet-text-show-more-link"]',
+      );
+      if (showMoreBtn) continue;
+    }
 
     // 统一扫读：按段落/句子本地拆分
     processedElements.add(el);
@@ -541,7 +547,7 @@ function scanPage(): void {
 
     // 生词标注（不管是否拆分）
     const vocabAnnotations = isLoaded()
-      ? annotateWords(text, knownWords, config.industryPacks)
+      ? annotateWords(text, knownWords)
       : [];
 
     // 收集生词列表（只要词）
@@ -616,7 +622,7 @@ function addManualTrigger(el: Element, text: string): void {
         const scanResult = scanSplit(text, "short", "fine");
         if (scanResult.chunks.length > 1) {
           const vocabAnnotations = isLoaded()
-            ? annotateWords(text, knownWords, config.industryPacks)
+            ? annotateWords(text, knownWords)
             : [];
           result = {
             original: text,
@@ -748,10 +754,103 @@ async function flushProcessQueue(): Promise<void> {
 
 // ========== MutationObserver ==========
 
+/**
+ * 恢复单个被隐藏的原始元素（移除分块兄弟、恢复显示、清理截断覆盖）
+ * 用于：站点 JS 更新了被隐藏元素的内容（如 Twitter "Show more" 展开全文）
+ */
+function restoreSingleElement(el: Element): void {
+  if (!el.classList.contains("enlearn-original-hidden")) return;
+
+  // 移除分块兄弟
+  const next = el.nextElementSibling;
+  if (next?.classList.contains("enlearn-chunked")) {
+    next.remove();
+  }
+
+  // 恢复原始元素显示
+  (el as HTMLElement).style.removeProperty("display");
+  el.classList.remove("enlearn-original-hidden");
+
+  // 清理祖先上的截断覆盖
+  let current = el.parentElement;
+  for (let i = 0; i < 6 && current; i++) {
+    const tag = current.tagName;
+    if (tag === "A" || tag === "ARTICLE") break;
+    if (current.getAttribute("role") === "article") break;
+    if (current.classList.contains("enlearn-clamp-override")) {
+      (current as HTMLElement).style.removeProperty("-webkit-line-clamp");
+      (current as HTMLElement).style.removeProperty("-webkit-box-orient");
+      (current as HTMLElement).style.removeProperty("display");
+      (current as HTMLElement).style.removeProperty("max-height");
+      (current as HTMLElement).style.removeProperty("overflow");
+      current.classList.remove("enlearn-clamp-override");
+    }
+    current = current.parentElement;
+  }
+
+  // 允许重新处理
+  processedElements.delete(el);
+
+  // 清理手动触发按钮（如有）
+  const trigger = el.querySelector(".enlearn-trigger");
+  if (trigger) trigger.remove();
+  el.classList.remove("enlearn-trigger-wrap");
+  el.removeAttribute("data-enlearn-trigger");
+}
+
 function setupMutationObserver(): void {
   mutationObserver = new MutationObserver((mutations) => {
     let hasNewContent = false;
+    const changedHiddenEls = new Set<Element>();
+
     for (const mutation of mutations) {
+      // 场景 A：站点 JS 修改了 hidden 元素内部内容（in-place 更新）
+      const target = mutation.target;
+      if (target instanceof Element) {
+        const hiddenEl = target.classList.contains("enlearn-original-hidden")
+          ? target
+          : target.closest(".enlearn-original-hidden");
+        if (hiddenEl) {
+          changedHiddenEls.add(hiddenEl);
+          continue;
+        }
+      } else if (target.parentElement) {
+        const hiddenEl = target.parentElement.closest(".enlearn-original-hidden");
+        if (hiddenEl) {
+          changedHiddenEls.add(hiddenEl);
+          continue;
+        }
+      }
+
+      // 场景 B：React 直接替换整个元素（移除旧 hidden 元素 + 插入新元素）
+      // Twitter "Show more"：React 移除旧 tweetText，插入包含全文的新 tweetText
+      // 旧元素被移除后，我们的 .enlearn-chunked 兄弟变成孤儿
+      for (const node of mutation.removedNodes) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as Element;
+          if (el.classList.contains("enlearn-original-hidden")) {
+            // 清理孤儿分块兄弟：在 parent 中找没有对应 hidden 原始元素的 chunked div
+            const parent = mutation.target;
+            if (parent instanceof Element) {
+              const chunkedDivs = parent.querySelectorAll(
+                ":scope > .enlearn-chunked"
+              );
+              for (const c of chunkedDivs) {
+                const prev = c.previousElementSibling;
+                if (
+                  !prev ||
+                  !prev.classList.contains("enlearn-original-hidden")
+                ) {
+                  c.remove();
+                }
+              }
+            }
+            processedElements.delete(el);
+            hasNewContent = true;
+          }
+        }
+      }
+
       for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE) {
           const el = node as Element;
@@ -761,6 +860,15 @@ function setupMutationObserver(): void {
         }
       }
     }
+
+    // 场景 A 触发：恢复并重新处理
+    if (changedHiddenEls.size > 0) {
+      for (const el of changedHiddenEls) {
+        restoreSingleElement(el);
+      }
+      setTimeout(scanPage, 300);
+    }
+
     if (hasNewContent) {
       setTimeout(scanPage, 300);
     }

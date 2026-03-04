@@ -23,5 +23,20 @@
   "cognitive": "adj. 认知的",
   "interoperability": "n. 互操作性，兼容性",
   "deployment": "n. 部署，上线",
-  "infrastructure": "n. 基础设施"
+  "infrastructure": "n. 基础设施",
+  "hallucination": "n. 幻觉 | [AI] AI模型生成看似合理但实际错误或虚构的内容",
+  "fine-tuning": "[AI] 微调，在预训练模型基础上用特定数据进一步训练以适配特定任务",
+  "inference": "n. 推理；推断 | [AI] 使用训练好的模型对新数据进行预测的过程",
+  "embeddings": "[AI] 嵌入向量，将文本/图像等转换为高维数值向量以捕捉语义信息",
+  "transformer": "n. 变压器 | [AI] 基于自注意力机制的深度学习模型架构",
+  "tokenization": "[AI] 分词，将文本切分为模型可处理的最小单元(token)",
+  "backpropagation": "[AI] 反向传播，通过计算损失函数梯度来更新神经网络权重的算法",
+  "overfitting": "[AI] 过拟合，模型在训练数据上表现好但泛化能力差的现象",
+  "prompt": "n./v. 提示；促使 | [AI] 提示词，输入给AI模型的指令或问题文本",
+  "latent": "adj. 潜在的 | [AI] 潜在的/隐变量，模型内部学到的不直接可观测的特征表示",
+  "gradient": "n. 梯度 | [AI] 函数在某点的变化率方向和大小，用于优化模型参数",
+  "epoch": "[AI] 训练轮次，模型完整遍历一次训练数据集",
+  "benchmark": "n. 基准 | [AI] 用标准数据集和指标评估模型性能",
+  "retrieval": "n. 检索 | [AI] 从大规模数据中找到相关信息的过程(如RAG中的R)",
+  "alignment": "n. 对齐 | [AI] 使AI模型的行为符合人类意图和价值观"
 }

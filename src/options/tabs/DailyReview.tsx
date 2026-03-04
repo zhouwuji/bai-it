@@ -91,7 +91,7 @@ export function DailyReview({ db, isExample }: DailyReviewProps) {
                     <span className="review-vocab-word">{v.word}</span>
                     <span className="review-vocab-freq">×{v.encounterToday}</span>
                   </div>
-                  <div className="review-vocab-def">{v.definition || v.industry_definition || ""}</div>
+                  <div className="review-vocab-def">{v.definition || ""}</div>
                   <button
                     className="review-vocab-mastered"
                     onClick={() => toggleMastered(v.word)}

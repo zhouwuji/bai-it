@@ -1,10 +1,9 @@
 /**
  * 生词标注系统
  *
- * 三层词汇源（优先级从高到低）：
- * 1. 行业术语包 — 用行业语境释义
- * 2. 通用离线词典 — 基础释义
- * 3. LLM 语境化释义 — 仅在调 LLM 时获得
+ * 词汇源：
+ * 1. 通用离线词典（含 AI 等行业术语义项）— 基础释义
+ * 2. LLM 语境化释义 — 仅在调 LLM 时获得
  *
  * 过滤规则：
  * - 常用词（词频表内）不标注
@@ -17,14 +16,12 @@
 export interface VocabAnnotation {
   word: string;
   definition: string;
-  source: "industry" | "dictionary";
 }
 
 // ========== 数据存储 ==========
 
 let frequencySet: Set<string> | null = null;
 let dictMap: Map<string, string> | null = null;
-const industryMaps = new Map<string, Map<string, string>>();
 
 // ========== 数据加载 ==========
 
@@ -45,19 +42,6 @@ export function loadDictionary(entries: Record<string, string>): void {
   for (const [word, def] of Object.entries(entries)) {
     dictMap.set(word.toLowerCase(), def);
   }
-}
-
-/**
- * 加载行业术语包
- * @param packName 术语包名称（如 "ai"）
- * @param entries word → definition 映射对象
- */
-export function loadIndustryPack(packName: string, entries: Record<string, string>): void {
-  const map = new Map<string, string>();
-  for (const [word, def] of Object.entries(entries)) {
-    map.set(word.toLowerCase(), def);
-  }
-  industryMaps.set(packName, map);
 }
 
 /**
@@ -169,19 +153,6 @@ export function isCommonWord(word: string): boolean {
   return candidates.some(c => frequencySet!.has(c));
 }
 
-/** 在行业术语包中查找（含词形变体） */
-function lookupIndustry(word: string, packs: string[]): string | null {
-  const candidates = getStemCandidates(word);
-  for (const pack of packs) {
-    const map = industryMaps.get(pack);
-    if (!map) continue;
-    for (const c of candidates) {
-      if (map.has(c)) return map.get(c)!;
-    }
-  }
-  return null;
-}
-
 /** 在通用词典中查找（含词形变体） */
 function lookupDictionary(word: string): string | null {
   if (!dictMap) return null;
@@ -197,13 +168,11 @@ function lookupDictionary(word: string): string | null {
  *
  * @param text 要标注的文本
  * @param knownWords 用户已掌握的词（Set<lowercase word>）
- * @param industryPacks 启用的行业术语包名称列表
  * @returns 需要标注的生词及释义
  */
 export function annotateWords(
   text: string,
   knownWords: Set<string>,
-  industryPacks: string[] = ["ai"],
 ): VocabAnnotation[] {
   if (!frequencySet || !dictMap) return [];
 
@@ -226,17 +195,10 @@ export function annotateWords(
     if (isCommonWord(word)) continue;
     if (knownWords.has(lower)) continue;
 
-    // 查找释义：行业术语优先
-    const industryDef = lookupIndustry(word, industryPacks);
-    if (industryDef) {
-      annotations.push({ word: lower, definition: industryDef, source: "industry" });
-      continue;
-    }
-
-    // 通用词典
+    // 在词典中查找释义（含 AI 等行业义项）
     const dictDef = lookupDictionary(word);
     if (dictDef) {
-      annotations.push({ word: lower, definition: dictDef, source: "dictionary" });
+      annotations.push({ word: lower, definition: dictDef });
     }
     // 无释义来源 → 不标注（不猜测）
   }
@@ -261,5 +223,4 @@ export function toNewWordsFormat(
 export function resetAll(): void {
   frequencySet = null;
   dictMap = null;
-  industryMaps.clear();
 }

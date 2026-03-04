@@ -75,9 +75,10 @@ function escapeHtml(text: string): string {
 function renderL5(lines: ChunkedLine[], newWords: { word: string; definition: string }[]): string {
   return lines
     .map((line) => {
-      if (line.isParagraphBreak) return '<span class="enlearn-para-break"></span>';
+      if (line.isParagraphBreak) return '<span class="enlearn-para-break" style="display:block !important;height:0.8em"></span>';
       const textHtml = markNewWords(line.text, newWords);
-      return `<span class="enlearn-line enlearn-indent-${line.indent} enlearn-depth-${line.indent}">${textHtml}</span>`;
+      const pad = line.indent > 0 ? `padding-left:${line.indent}em;` : "";
+      return `<span class="enlearn-line enlearn-indent-${line.indent} enlearn-depth-${line.indent}" style="display:block !important;${pad}">${textHtml}</span>`;
     })
     .join("");
 }
@@ -85,10 +86,11 @@ function renderL5(lines: ChunkedLine[], newWords: { word: string; definition: st
 function renderL4(lines: ChunkedLine[], newWords: { word: string; definition: string }[]): string {
   return lines
     .map((line) => {
-      if (line.isParagraphBreak) return '<span class="enlearn-para-break"></span>';
+      if (line.isParagraphBreak) return '<span class="enlearn-para-break" style="display:block !important;height:0.8em"></span>';
       const textHtml = markNewWords(line.text, newWords);
+      const pad = line.indent > 0 ? `padding-left:${line.indent}em;` : "";
       // 保留缩进，不加透明度（depth 全为 0）
-      return `<span class="enlearn-line enlearn-indent-${line.indent} enlearn-depth-0">${textHtml}</span>`;
+      return `<span class="enlearn-line enlearn-indent-${line.indent} enlearn-depth-0" style="display:block !important;${pad}">${textHtml}</span>`;
     })
     .join("");
 }
@@ -96,10 +98,10 @@ function renderL4(lines: ChunkedLine[], newWords: { word: string; definition: st
 function renderL3(lines: ChunkedLine[], newWords: { word: string; definition: string }[]): string {
   return lines
     .map((line) => {
-      if (line.isParagraphBreak) return '<span class="enlearn-para-break"></span>';
+      if (line.isParagraphBreak) return '<span class="enlearn-para-break" style="display:block !important;height:0.8em"></span>';
       const textHtml = markNewWords(line.text, newWords);
       // 只分行，不缩进（所有行左对齐）
-      return `<span class="enlearn-line enlearn-indent-0 enlearn-depth-0">${textHtml}</span>`;
+      return `<span class="enlearn-line enlearn-indent-0 enlearn-depth-0" style="display:block !important">${textHtml}</span>`;
     })
     .join("");
 }
@@ -167,7 +169,8 @@ export function renderChunkedHtml(result: ChunkResult, intensity: number = 5): s
       break;
   }
 
-  return `<div class="${containerClass}" data-original="${escapeHtml(result.original)}">${linesHtml}</div>`;
+  const containerStyle = isInline ? "" : ' style="display:block !important"';
+  return `<div class="${containerClass}"${containerStyle} data-original="${escapeHtml(result.original)}">${linesHtml}</div>`;
 }
 
 /**
