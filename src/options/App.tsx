@@ -32,9 +32,10 @@ export function App() {
   const { config, loading: configLoading, saveConfig, updateLLM } = useConfig();
   const onboarding = useOnboardingState(db, config, configLoading);
 
-  // Per-tab isExample
+  // Per-tab isExample — 只要有采集到的数据就不是示例
   const dashboardIsExample = !onboarding.hasData;
-  const reviewSentencesIsExample = !onboarding.hasAnalyzedData;
+  const sentencesIsExample = !onboarding.hasData;
+  const reviewIsExample = !onboarding.hasData;
 
   const masteredWordsValue = useMasteredWordsProvider(db);
 
@@ -65,10 +66,9 @@ export function App() {
       return null;
     }
 
-    // review / sentences — based on hasAnalyzedData
-    if (!onboarding.hasAnalyzedData) {
-      if (!onboarding.hasApi) return "api";
-      return "browse-with-api";
+    // review / sentences — just needs any data (pending or analyzed)
+    if (!onboarding.hasData) {
+      return onboarding.hasApi ? "browse-with-api" : "browse";
     }
     return null;
   }
@@ -102,10 +102,10 @@ export function App() {
               )}
             </div>
             <div className={`tab-panel ${activeTab === "review" ? "active" : ""}`}>
-              {activeTab === "review" && <DailyReview key={tabKey} db={db} isExample={reviewSentencesIsExample} />}
+              {activeTab === "review" && <DailyReview key={tabKey} db={db} isExample={reviewIsExample} />}
             </div>
             <div className={`tab-panel ${activeTab === "sentences" ? "active" : ""}`}>
-              {activeTab === "sentences" && <Sentences key={tabKey} db={db} isExample={reviewSentencesIsExample} />}
+              {activeTab === "sentences" && <Sentences key={tabKey} db={db} isExample={sentencesIsExample} />}
             </div>
             <div className={`tab-panel ${activeTab === "settings" ? "active" : ""}`}>
               {activeTab === "settings" && (
