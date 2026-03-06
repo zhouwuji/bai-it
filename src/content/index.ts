@@ -11,7 +11,7 @@
 import { isEnglish } from "../shared/rule-engine.ts";
 import { scanSplit, toChunkedString } from "../shared/scan-rules.ts";
 import {
-  loadFrequencyList, loadDictionary,
+  loadFrequencyList, loadDictionary, loadLemmaMap,
   annotateWords, toNewWordsFormat, isLoaded,
 } from "../shared/vocab.ts";
 import type { BaitConfig, ChunkResult, BackgroundMessage } from "../shared/types.ts";
@@ -23,6 +23,7 @@ import { ENLEARN_STYLES } from "./styles.ts";
 
 import wordFrequency from "../../data/word-frequency.json";
 import dictEntries from "../../data/dict-ecdict.json";
+import lemmaEntries from "../../data/lemma-map.json";
 
 // ========== 状态 ==========
 
@@ -172,6 +173,7 @@ async function init(): Promise<void> {
   // 加载词汇数据
   loadFrequencyList(wordFrequency as string[]);
   loadDictionary(dictEntries as Record<string, string>);
+  loadLemmaMap(lemmaEntries as Record<string, string>);
 
   // 加载用户已掌握的词
   try {

@@ -2,11 +2,12 @@
  * 生词标注系统
  *
  * 词汇源：
- * 1. 通用离线词典（含 AI 等行业术语义项）— 基础释义
+ * 1. 通用离线词典（ECDICT 31K 词条）— 基础释义
  * 2. LLM 语境化释义 — 仅在调 LLM 时获得
  *
  * 过滤规则：
- * - 常用词（词频表内）不标注
+ * - 常用词（ECDICT BNC/FRQ ≤ 5000）不标注
+ * - 词形变体还原到原形后判断（ECDICT exchange 字段）
  * - 用户已标记"已掌握"的词不标注
  * - 太短的词（< 3 字母）不标注
  */
@@ -22,6 +23,7 @@ export interface VocabAnnotation {
 
 let frequencySet: Set<string> | null = null;
 let dictMap: Map<string, string> | null = null;
+let lemmaMap: Map<string, string> | null = null;
 
 // ========== 数据加载 ==========
 
@@ -45,6 +47,17 @@ export function loadDictionary(entries: Record<string, string>): void {
 }
 
 /**
+ * 初始化词形映射表（variant → base form）
+ * @param entries variant → base 映射对象
+ */
+export function loadLemmaMap(entries: Record<string, string>): void {
+  lemmaMap = new Map();
+  for (const [variant, base] of Object.entries(entries)) {
+    lemmaMap.set(variant.toLowerCase(), base.toLowerCase());
+  }
+}
+
+/**
  * 检查数据是否已加载
  */
 export function isLoaded(): boolean {
@@ -53,96 +66,77 @@ export function isLoaded(): boolean {
 
 // ========== 核心逻辑 ==========
 
-/** 不标注的词：太短、纯数字、含特殊字符 */
+/** 不标注的词：太短、纯数字、含特殊字符、缩写 */
 function shouldSkipWord(word: string): boolean {
   if (word.length < 3) return true;
   if (/^\d+$/.test(word)) return true;
   if (/[^a-zA-Z'-]/.test(word)) return true;
+  // 跳过英文缩写：don't, won't, I'm, he's, they're 等
+  if (word.includes("'")) return true;
   return false;
 }
 
 /**
- * 简单词形还原：去掉常见英文后缀，尝试还原词典原形
- * 不求完美，只求覆盖最常见的变形（-s, -es, -ed, -ing, -ly, -er, -est）
+ * 获取词的原形候选（通过 lemma 映射表 + 简单后缀规则兜底）
+ *
+ * 优先用 ECDICT exchange 字段生成的 lemma 映射（准确），
+ * 如果映射表没有，用简单后缀规则兜底（覆盖常见变形）。
  */
 export function getStemCandidates(word: string): string[] {
   const w = word.toLowerCase();
   const candidates: string[] = [w];
 
-  // -ing: running→run, making→make, achieving→achieve
+  // 1. 查 lemma 映射表（最准确）
+  if (lemmaMap) {
+    const base = lemmaMap.get(w);
+    if (base) {
+      candidates.push(base);
+      return candidates; // lemma 表有结果就不需要猜了
+    }
+  }
+
+  // 2. 兜底：简单后缀规则（处理 lemma 表未覆盖的变形）
   if (w.endsWith("ing") && w.length > 5) {
     const stem = w.slice(0, -3);
-    candidates.push(stem);           // running → runn → 不行，但 look below
-    candidates.push(stem + "e");     // making → make
-    // 双写辅音: running → run
+    candidates.push(stem);
+    candidates.push(stem + "e");
     if (stem.length >= 3 && stem[stem.length - 1] === stem[stem.length - 2]) {
       candidates.push(stem.slice(0, -1));
     }
   }
 
-  // -ed: achieved→achieve, transformed→transform, stopped→stop
   if (w.endsWith("ed") && w.length > 4) {
-    candidates.push(w.slice(0, -2));   // transformed → transform
-    candidates.push(w.slice(0, -1));   // achieved → achiev → 不行
-    // 双写辅音: stopped → stop
+    candidates.push(w.slice(0, -2));
+    candidates.push(w.slice(0, -1));
     const stem = w.slice(0, -2);
     if (stem.length >= 3 && stem[stem.length - 1] === stem[stem.length - 2]) {
       candidates.push(stem.slice(0, -1));
     }
-    // -ied: satisfied → satisfy
     if (w.endsWith("ied")) {
       candidates.push(w.slice(0, -3) + "y");
     }
   }
 
-  // -s/-es: transformers→transformer, achieves→achieve
   if (w.endsWith("ses") || w.endsWith("xes") || w.endsWith("zes") ||
       w.endsWith("ches") || w.endsWith("shes")) {
-    candidates.push(w.slice(0, -2)); // watches → watch
+    candidates.push(w.slice(0, -2));
   } else if (w.endsWith("ies") && w.length > 4) {
-    candidates.push(w.slice(0, -3) + "y"); // strategies → strategy
+    candidates.push(w.slice(0, -3) + "y");
   } else if (w.endsWith("s") && !w.endsWith("ss") && w.length > 3) {
-    candidates.push(w.slice(0, -1)); // transformers → transformer
+    candidates.push(w.slice(0, -1));
   }
 
-  // -ly: dramatically→dramatic, elegantly→elegant
   if (w.endsWith("ly") && w.length > 4) {
-    candidates.push(w.slice(0, -2));  // elegantly → elegant
-    // -ally: dramatically → dramatic
+    candidates.push(w.slice(0, -2));
     if (w.endsWith("ally") && w.length > 6) {
-      candidates.push(w.slice(0, -4)); // dramatically → dramatic → 不行
-      candidates.push(w.slice(0, -4) + "al"); // optionally → optional
+      candidates.push(w.slice(0, -4));
+      candidates.push(w.slice(0, -4) + "al");
     }
-    // -ily: easily → easy
     if (w.endsWith("ily")) {
       candidates.push(w.slice(0, -3) + "y");
     }
   }
 
-  // -er/-est: faster→fast, biggest→big
-  if (w.endsWith("er") && w.length > 4 && !w.endsWith("eer") && !w.endsWith("ier")) {
-    candidates.push(w.slice(0, -2));
-    candidates.push(w.slice(0, -1)); // bigger → bigge → 不行, but try
-    const stem = w.slice(0, -2);
-    if (stem.length >= 3 && stem[stem.length - 1] === stem[stem.length - 2]) {
-      candidates.push(stem.slice(0, -1)); // bigger → big
-    }
-  }
-  if (w.endsWith("est") && w.length > 5) {
-    candidates.push(w.slice(0, -3));
-    const stem = w.slice(0, -3);
-    if (stem.length >= 3 && stem[stem.length - 1] === stem[stem.length - 2]) {
-      candidates.push(stem.slice(0, -1));
-    }
-  }
-
-  // -tion/-sion: implementation→implement (bonus, not critical)
-  if (w.endsWith("tion") && w.length > 6) {
-    candidates.push(w.slice(0, -4));     // tion removed
-    candidates.push(w.slice(0, -5) + "t"); // -ation → -at → 不行, 但 -ation 可能有
-  }
-
-  // 去重
   return [...new Set(candidates)];
 }
 
@@ -195,7 +189,7 @@ export function annotateWords(
     if (isCommonWord(word)) continue;
     if (knownWords.has(lower)) continue;
 
-    // 在词典中查找释义（含 AI 等行业义项）
+    // 在词典中查找释义
     const dictDef = lookupDictionary(word);
     if (dictDef) {
       annotations.push({ word: lower, definition: dictDef });
@@ -223,4 +217,5 @@ export function toNewWordsFormat(
 export function resetAll(): void {
   frequencySet = null;
   dictMap = null;
+  lemmaMap = null;
 }
