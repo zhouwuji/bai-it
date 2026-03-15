@@ -5,11 +5,12 @@ export interface LLMConfig {
   format: "gemini" | "openai-compatible";
   apiKey: string;
   baseUrl: string;
+  chatPath: string;
   model: string;
 }
 
-/** 5 种 Provider */
-export type ProviderKey = "gemini" | "chatgpt" | "deepseek" | "qwen" | "kimi";
+/** 6 种 Provider */
+export type ProviderKey = "gemini" | "chatgpt" | "deepseek" | "qwen" | "kimi" | "zhipu";
 
 /** 单个 Provider 的存储数据 */
 export interface ProviderConfig {
@@ -40,6 +41,7 @@ export const DEFAULT_PROVIDERS: Record<ProviderKey, ProviderConfig> = {
   deepseek: { apiKey: "", model: "deepseek-chat" },
   qwen: { apiKey: "", model: "qwen3-flash" },
   kimi: { apiKey: "", model: "kimi-k2.5" },
+  zhipu: { apiKey: "", model: "glm-4.7" },
 };
 
 export const DEFAULT_CONFIG: BaitConfig = {
@@ -54,13 +56,14 @@ export const DEFAULT_CONFIG: BaitConfig = {
   disabledSites: [],
 };
 
-/** Provider 元数据（format / baseUrl 是常量，从 provider 名推导） */
-export const PROVIDER_META: Record<ProviderKey, { format: LLMConfig["format"]; baseUrl: string; label: string }> = {
-  gemini: { format: "gemini", baseUrl: "", label: "Gemini" },
-  chatgpt: { format: "openai-compatible", baseUrl: "https://api.openai.com", label: "ChatGPT" },
-  deepseek: { format: "openai-compatible", baseUrl: "https://api.deepseek.com", label: "DeepSeek" },
-  qwen: { format: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode", label: "Qwen" },
-  kimi: { format: "openai-compatible", baseUrl: "https://api.moonshot.cn", label: "Kimi" },
+/** Provider 元数据（format / baseUrl / chatPath 是常量，从 provider 名推导） */
+export const PROVIDER_META: Record<ProviderKey, { format: LLMConfig["format"]; baseUrl: string; chatPath: string; label: string }> = {
+  gemini: { format: "gemini", baseUrl: "", chatPath: "", label: "Gemini" },
+  chatgpt: { format: "openai-compatible", baseUrl: "https://api.openai.com", chatPath: "/v1/chat/completions", label: "ChatGPT" },
+  deepseek: { format: "openai-compatible", baseUrl: "https://api.deepseek.com", chatPath: "/v1/chat/completions", label: "DeepSeek" },
+  qwen: { format: "openai-compatible", baseUrl: "https://dashscope.aliyuncs.com/compatible-mode", chatPath: "/v1/chat/completions", label: "Qwen" },
+  kimi: { format: "openai-compatible", baseUrl: "https://api.moonshot.cn", chatPath: "/v1/chat/completions", label: "Kimi" },
+  zhipu: { format: "openai-compatible", baseUrl: "https://open.bigmodel.cn/api/paas/v4", chatPath: "/chat/completions", label: "智谱" },
 };
 
 /** 从多 Provider 配置中解析出 LLMConfig（给 llm-adapter 用） */
@@ -72,6 +75,7 @@ export function resolveLLMConfig(multi: LLMMultiConfig): LLMConfig {
     format: meta.format,
     apiKey: pc.apiKey,
     baseUrl: meta.baseUrl,
+    chatPath: meta.chatPath,
     model: pc.model,
   };
 }

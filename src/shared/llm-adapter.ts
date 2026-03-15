@@ -109,7 +109,8 @@ export interface OpenAIRequestBody {
 
 export function buildOpenAIRequest(prompt: string, config: LLMConfig): { url: string; body: OpenAIRequestBody; headers: Record<string, string> } {
   const baseUrl = config.baseUrl.replace(/\/+$/, "");
-  const url = `${baseUrl}/v1/chat/completions`;
+  const chatPath = config.chatPath || "/v1/chat/completions";
+  const url = `${baseUrl}${chatPath}`;
 
   const body: OpenAIRequestBody = {
     model: config.model,

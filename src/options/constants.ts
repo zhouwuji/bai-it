@@ -30,6 +30,11 @@ export const PROVIDER_INFO: Record<
     models: ["kimi-k2.5", "moonshot-v1-8k"],
     hint: "K2.5 是当前主力模型。moonshot-v1 是旧版。",
   },
+  zhipu: {
+    label: "智谱",
+    models: ["glm-4.7", "glm-4-flash", "glm-4-plus"],
+    hint: "GLM-4.7 最新最强，推荐使用。",
+  },
 };
 
 /** 句式 key → 中文名映射 */
