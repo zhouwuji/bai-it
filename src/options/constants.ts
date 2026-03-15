@@ -32,8 +32,8 @@ export const PROVIDER_INFO: Record<
   },
   zhipu: {
     label: "智谱",
-    models: ["glm-4.7", "glm-4-flash", "glm-4-plus"],
-    hint: "GLM-4.7 最新最强，推荐使用。",
+    models: ["glm-4.7", "glm-4.7-flash"],
+    hint: "GLM-4.7 最新最强，Flash 版速度更快。",
   },
 };
 
