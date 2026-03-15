@@ -442,3 +442,51 @@ export async function analyzeSentenceFull(
   const text = extractResponseText(responseData, config.format);
   return parseFullAnalysisJson(text);
 }
+
+// ========== 连接测试（轻量级） ==========
+
+/**
+ * 快速测试 API 连通性
+ * 只发送一个简单的请求，验证 API Key 和模型是否可用
+ */
+export async function testConnection(config: LLMConfig): Promise<void> {
+  const simplePrompt = 'Reply with only: {"ok":true}';
+
+  if (config.format === "gemini") {
+    const model = config.model || "gemini-2.0-flash";
+    const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${config.apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: simplePrompt }] }],
+        generationConfig: { temperature: 0.1 },
+      }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Gemini API 错误 (${response.status}): ${errorText.slice(0, 200)}`);
+    }
+  } else {
+    const baseUrl = config.baseUrl.replace(/\/+$/, "");
+    const chatPath = config.chatPath || "/v1/chat/completions";
+    const url = `${baseUrl}${chatPath}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${config.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: config.model,
+        messages: [{ role: "user", content: simplePrompt }],
+        temperature: 0.1,
+        max_tokens: 10,
+      }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API 错误 (${response.status}): ${errorText.slice(0, 200)}`);
+    }
+  }
+}

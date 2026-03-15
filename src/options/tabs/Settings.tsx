@@ -1,13 +1,11 @@
 import { useState, useCallback } from "react";
 import type { ProviderKey, LLMMultiConfig } from "../../shared/types.ts";
 import { DEFAULT_PROVIDERS, PROVIDER_META, resolveLLMConfig } from "../../shared/types.ts";
-import { chunkSentences } from "../../shared/llm-adapter.ts";
+import { testConnection } from "../../shared/llm-adapter.ts";
 import { GlassCard } from "../components/GlassCard.tsx";
 import { PROVIDER_INFO } from "../constants.ts";
 
 const PROVIDER_KEYS: ProviderKey[] = ["gemini", "chatgpt", "deepseek", "qwen", "kimi", "zhipu"];
-
-const TEST_SENTENCE = "Although the project had been delayed by several unexpected issues, the team managed to deliver a working prototype on time.";
 
 interface SettingsProps {
   config: { llm: LLMMultiConfig };
@@ -60,17 +58,11 @@ export function Settings({ config, configLoading: loading, updateLLM }: Settings
     setVerifyError("");
 
     try {
-      // 端到端验证：用真实句子走完整 chunkSentences 链路
       const llmConfig = resolveLLMConfig({
         activeProvider,
         providers: config.llm.providers,
       });
-      const results = await chunkSentences([TEST_SENTENCE], llmConfig);
-
-      if (!results || results.length === 0 || !results[0].chunked) {
-        throw new Error("API 返回了空结果，请检查模型是否可用");
-      }
-
+      await testConnection(llmConfig);
       setVerifyStatus((prev) => ({ ...prev, [activeProvider]: "ok" }));
     } catch (err) {
       setVerifyStatus((prev) => ({ ...prev, [activeProvider]: "error" }));
